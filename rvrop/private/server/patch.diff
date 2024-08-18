@@ -1,0 +1,161 @@
+diff --git a/linux-user/elfload.c b/linux-user/elfload.c
+index b27dd01734..cd5ada4161 100644
+--- a/linux-user/elfload.c
++++ b/linux-user/elfload.c
+@@ -25,6 +25,7 @@
+ #include "qapi/error.h"
+ #include "qemu/error-report.h"
+ #include "target_signal.h"
++#include "randomize_va.h"
+ #include "tcg/debuginfo.h"
+ 
+ #ifdef TARGET_ARM
+@@ -2344,7 +2345,7 @@ static abi_ulong setup_arg_pages(struct linux_binprm *bprm,
+     if (info->exec_stack) {
+         prot |= PROT_EXEC;
+     }
+-    error = target_mmap(0, size + guard, prot,
++    error = target_mmap(get_random_addr(0, size + guard), size + guard, prot,
+                         MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+     if (error == -1) {
+         perror("mmap stack");
+@@ -3332,10 +3333,22 @@ static void load_elf_image(const char *image_name, const ImageSource *src,
+      * In both cases, we will overwrite pages in this range with mappings
+      * from the executable.
+      */
+-    load_addr = target_mmap(load_addr, (size_t)hiaddr - loaddr + 1, PROT_NONE,
+-                            MAP_PRIVATE | MAP_ANON | MAP_NORESERVE |
+-                            (ehdr->e_type == ET_EXEC ? MAP_FIXED_NOREPLACE : 0),
+-                            -1, 0);
++    if (ehdr->e_type == ET_DYN)
++    {
++        load_addr = target_mmap(get_random_addr(0, hiaddr - loaddr), (size_t)hiaddr - loaddr + 1, PROT_NONE,
++                                MAP_PRIVATE | MAP_ANON | MAP_NORESERVE |
++                                (ehdr->e_type == ET_EXEC ? MAP_FIXED_NOREPLACE : 0),
++                                -1, 0);
++    }
++    else
++    {
++        load_addr = target_mmap(load_addr, (size_t)hiaddr - loaddr + 1, PROT_NONE,
++                                MAP_PRIVATE | MAP_ANON | MAP_NORESERVE |
++                                (ehdr->e_type == ET_EXEC ? MAP_FIXED_NOREPLACE : 0),
++                                -1, 0);
++    }
++
++
+     if (load_addr == -1) {
+         goto exit_mmap;
+     }
+diff --git a/linux-user/main.c b/linux-user/main.c
+index 8143a0d4b0..2451d4f14f 100644
+--- a/linux-user/main.c
++++ b/linux-user/main.c
+@@ -55,6 +55,7 @@
+ #include "signal-common.h"
+ #include "loader.h"
+ #include "user-mmap.h"
++#include "randomize_va.h"
+ #include "tcg/perf.h"
+ #include "exec/page-vary.h"
+ 
+diff --git a/linux-user/meson.build b/linux-user/meson.build
+index bc41e8c3bc..588ef04afb 100644
+--- a/linux-user/meson.build
++++ b/linux-user/meson.build
+@@ -20,6 +20,7 @@ linux_user_ss.add(files(
+   'thunk.c',
+   'uaccess.c',
+   'uname.c',
++  'randomize_va.c'
+ ))
+ linux_user_ss.add(rt)
+ linux_user_ss.add(libdw)
+diff --git a/linux-user/randomize_va.c b/linux-user/randomize_va.c
+new file mode 100644
+index 0000000000..13d550d165
+--- /dev/null
++++ b/linux-user/randomize_va.c
+@@ -0,0 +1,40 @@
++#include "qemu/osdep.h"
++#include "qemu/bitops.h"
++
++#include "qemu.h"
++#include "randomize_va.h"
++
++abi_ulong get_random_addr(abi_ulong addr, abi_ulong size) {
++    abi_ulong orig_addr = addr;
++    abi_ulong newloaddr = 0;
++
++    /* New seed for upcoming rand. */
++    int seed;
++    int rand_fd = open("/dev/urandom", O_RDONLY);
++    if (!read(rand_fd, &seed, 4))
++    {
++        srand(seed);
++    }
++    {
++        srand(time(NULL));
++    }
++    close(rand_fd);
++
++    /* If addr is 0, kernel handles finding a valid address. If non-zero
++     * we should honor the request for the specified mmap address.
++     */
++    abi_ulong iterations = (rand() % (20 - 10 + 1)) + 10;
++
++    if (orig_addr == 0)
++    {
++        for (int i = 0; i < iterations; i++)
++        {
++            newloaddr = rand() & TARGET_PAGE_MASK;
++        }
++    }
++    else
++        newloaddr = addr;
++
++    fflush(stdout);
++    return newloaddr;
++}
+diff --git a/linux-user/randomize_va.h b/linux-user/randomize_va.h
+new file mode 100644
+index 0000000000..8baa938824
+--- /dev/null
++++ b/linux-user/randomize_va.h
+@@ -0,0 +1,2 @@
++abi_ulong get_random_addr(abi_ulong addr, abi_ulong size);
++
+diff --git a/linux-user/syscall.c b/linux-user/syscall.c
+index 9d5415674d..4b781d82f1 100644
+--- a/linux-user/syscall.c
++++ b/linux-user/syscall.c
+@@ -144,6 +144,7 @@
+ #include "qapi/error.h"
+ #include "fd-trans.h"
+ #include "cpu_loop-common.h"
++#include "randomize_va.h"
+ 
+ #ifndef CLONE_IO
+ #define CLONE_IO                0x80000000      /* Clone io context */
+@@ -10502,7 +10503,9 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
+         }
+ #else
+         /* mmap pointers are always untagged */
+-        return do_mmap(arg1, arg2, arg3, arg4, arg5, arg6);
++        if (arg1 != 0)
++            return do_mmap(arg1, arg2, arg3, arg4, arg5, arg6);
++        return do_mmap(get_random_addr(arg1, arg2), arg2, arg3, arg4, arg5, arg6);
+ #endif
+ #endif
+ #ifdef TARGET_NR_mmap2
+@@ -10510,7 +10513,10 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
+ #ifndef MMAP_SHIFT
+ #define MMAP_SHIFT 12
+ #endif
+-        return do_mmap(arg1, arg2, arg3, arg4, arg5,
++        if (arg1 != 0)
++            return do_mmap(arg1, arg2, arg3, arg4, arg5,
++                           (off_t)(abi_ulong)arg6 << MMAP_SHIFT);
++        return do_mmap(get_random_addr(arg1, arg2), arg2, arg3, arg4, arg5,
+                        (off_t)(abi_ulong)arg6 << MMAP_SHIFT);
+ #endif
+     case TARGET_NR_munmap:

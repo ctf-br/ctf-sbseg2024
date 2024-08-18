@@ -1,0 +1,12 @@
+services:
+  shcodeme:
+    build: .
+    ports:
+      - 5000:5000
+    privileged: true
+    environment:
+      JAIL_DEV: null,zero,urandom,kvm
+      JAIL_CPU: 1000
+      JAIL_MEM: 64M
+      JAIL_TMP_SIZE: 4M
+      JAIL_PIDS: 0

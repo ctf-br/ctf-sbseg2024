@@ -1,0 +1,14 @@
+services:
+  server:
+    build: .
+    restart: unless-stopped
+  tunnel:
+    container_name: cloudflared-tunnel
+    image: docker.io/cloudflare/cloudflared
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=
+
+networks:
+  default:

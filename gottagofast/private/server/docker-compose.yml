@@ -1,0 +1,29 @@
+# File: docker-compose.yml
+version: "3"
+
+services:
+  web:
+    build: .
+    environment:
+      CTF_FLAG: CTF-BR{G0tt4_go_F4ST!_boiiiii_pru}
+    depends_on:
+      - db
+
+  db:
+    image: mongo:7.0.14
+    restart: unless-stopped
+    # volumes:
+    #   - mongo_data:/data/db
+# volumes:
+#   mongo_data:
+
+  tunnel:
+    container_name: cloudflared-tunnel
+    image: docker.io/cloudflare/cloudflared
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=
+
+networks:
+  default:

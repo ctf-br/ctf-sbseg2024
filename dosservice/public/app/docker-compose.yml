@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  php-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "1337:1337"
+    volumes:
+      - /app/vendor
+      - ./templates_c:/app/templates_c:rw
+

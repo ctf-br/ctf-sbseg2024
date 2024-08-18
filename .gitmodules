@@ -1,0 +1,3 @@
+[submodule "esoteric/private/generate/LuaJIT"]
+	path = esoteric/private/generate/LuaJIT
+	url = https://github.com/plctlab/LuaJIT

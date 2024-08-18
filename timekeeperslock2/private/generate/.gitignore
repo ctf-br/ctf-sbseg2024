@@ -1,0 +1,18 @@
+# Bluespec
+*.bo
+*.ba
+mk*.v
+mk*.o
+mk*.cxx
+mk*.h
+model_*.o
+model_*.cxx
+model_*.h
+*.use
+# Testbench
+/tb
+/tb.so
+*.vcd
+# Synthesis
+*.json
+*.config

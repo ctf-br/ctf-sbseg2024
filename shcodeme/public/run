@@ -1,0 +1,3 @@
+#!/bin/sh
+cp floppy.img /tmp
+exec socat STDIO EXEC:'qemu-system-i386 -accel kvm -m 4M -serial stdio -drive format=raw\,file=/tmp/floppy.img\,index=0\,if=floppy -boot a -display none',crlf

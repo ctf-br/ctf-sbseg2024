@@ -1,0 +1,28 @@
+PUT /users/create
+
+{
+    "username": "daniel",
+    "password": "daniel123",
+    "my_page": "https://google.com.br/" # (optinal) nosso server faz um GET na url
+}
+
+"""
+page detected, need admin
+created admin: daniel
+page "https://google.com.br": status OK
+user "daniel" downgraded to user
+"""
+
+ai tenq entender que, demora 10ms sla pra inserir no banco (entao ele ja pode fazer login), por mais q o create_user demore 500ms por conta do GET request
+
+
+GET /users/sonic/page  # flag ta aqui, # sonic's page is so cool!
+
+
+# write-up:
+- create user with slow URL
+- while get on URL:
+    - login (get admin auth cookie)
+    - GET /users/sonic/page (contains flag)
+
+faria alguma coisa tipo, "get_logs" on user creation sla
